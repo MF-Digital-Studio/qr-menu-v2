@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import { ChevronDown, FolderOpen, Menu, Package, Settings, X } from "lucide-react"
+import { ChevronDown, FolderOpen, Megaphone, Menu, Package, Settings, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const navItems = [
     { id: "products", name: "Ürünler", icon: Package, href: "/admin" },
     { id: "categories", name: "Kategoriler", icon: FolderOpen, href: "/admin/categories" },
+    { id: "campaigns", name: "Kampanyalar", icon: Megaphone, href: "/admin/campaigns" },
     {
         id: "settings",
         name: "Ayarlar",
