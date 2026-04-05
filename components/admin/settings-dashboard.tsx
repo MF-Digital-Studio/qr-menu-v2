@@ -1,21 +1,31 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { Check } from "lucide-react"
-import { useToast } from "@/context/toast-context"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { updateSettingsAction, type SettingsRow } from "@/app/actions/settings-actions"
+import { handleImageUpload } from "@/lib/upload-image"
+import {
+    buildThemeCss,
+    fontFamilies,
+    radiusValues,
+    themePresets,
+    type FontPreset,
+    type RadiusPreset,
+    type ThemePresetId,
+} from "@/lib/themes"
 
 export type SettingsSection = "general" | "appearance" | "perks"
 type CurrencySymbol = "₺" | "$" | "€" | "£"
-type ThemePresetId = "minimalist" | "royal-gold" | "nature" | "midnight"
-type FontPreset = "modern-sans" | "elegant-serif" | "classic-mono"
-type RadiusPreset = "square" | "rounded" | "extra-round"
 
 interface SettingsDashboardProps {
     activeTab: SettingsSection
+    initialData: SettingsRow | null
 }
 
 interface GeneralProfileSettings {
@@ -54,57 +64,9 @@ const sectionContent = {
     },
 } as const
 
-const themePresets = [
-    {
-        id: "minimalist" as const,
-        name: "Minimal",
-        primary: "#0f172a",
-        background: "#ffffff",
-        surface: "#f8fafc",
-        accent: "#e2e8f0",
-        text: "#0f172a",
-        muted: "#64748b",
-        buttonText: "#ffffff",
-    },
-    {
-        id: "royal-gold" as const,
-        name: "Kraliyet Altını",
-        primary: "#c8a75b",
-        background: "#1c1917",
-        surface: "#f8f1df",
-        accent: "#4a3c1c",
-        text: "#f8f1df",
-        muted: "#d6c6a1",
-        buttonText: "#1c1917",
-    },
-    {
-        id: "nature" as const,
-        name: "Doğa",
-        primary: "#4f7a5c",
-        background: "#f7f7f2",
-        surface: "#ffffff",
-        accent: "#c6d3c1",
-        text: "#243129",
-        muted: "#6b7280",
-        buttonText: "#ffffff",
-    },
-    {
-        id: "midnight" as const,
-        name: "Gece",
-        primary: "#5b7cfa",
-        background: "#0f172a",
-        surface: "#dbe4ff",
-        accent: "#27344d",
-        text: "#e2e8f0",
-        muted: "#94a3b8",
-        buttonText: "#ffffff",
-    },
-]
-
 const fontOptions = [
-    { id: "modern-sans" as const, label: "Modern Sans (Geist Sans)" },
-    { id: "elegant-serif" as const, label: "Zarif Serif (Playfair Display)" },
-    { id: "classic-mono" as const, label: "Klasik Mono" },
+    { id: "modern-sans" as const, label: "Modern Sans (DM Sans)" },
+    { id: "elegant-serif" as const, label: "Zarif Serif (Crimson Pro)" },
 ]
 
 const radiusOptions = [
@@ -113,107 +75,128 @@ const radiusOptions = [
     { id: "extra-round" as const, label: "Ekstra Yuvarlak" },
 ]
 
-const fontFamilies: Record<FontPreset, string> = {
-    "modern-sans": "var(--font-geist-sans), 'Geist Sans', sans-serif",
-    "elegant-serif": "'Playfair Display', Georgia, serif",
-    "classic-mono": "'SFMono-Regular', 'Roboto Mono', monospace",
-}
-
-const radiusValues: Record<RadiusPreset, string> = {
-    square: "0.4rem",
-    rounded: "0.75rem",
-    "extra-round": "1.25rem",
-}
-
-export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
-    const defaultLogoUrl =
-        "https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&w=200&q=80"
+export function SettingsDashboard({ activeTab, initialData }: SettingsDashboardProps) {
     const defaultSplashUrl =
         "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1200&q=80"
 
+    const router = useRouter()
     const logoInputRef = useRef<HTMLInputElement | null>(null)
     const splashInputRef = useRef<HTMLInputElement | null>(null)
 
     const [generalProfile, setGeneralProfile] = useState<GeneralProfileSettings>({
-        restaurantName: "MF Digital Cafe",
-        tagline: "Mahallenizin modern kahvesi, özenle servis edilir.",
-        logoUrl: defaultLogoUrl,
+        restaurantName: initialData?.restaurantName ?? "",
+        tagline: initialData?.slogan ?? "",
+        logoUrl: initialData?.logo ?? "",
     })
     const [appearance, setAppearance] = useState<AppearanceSettings>({
-        splashImageUrl: defaultSplashUrl,
-        currencySymbol: "₺",
+        splashImageUrl: initialData?.splashImage ?? defaultSplashUrl,
+        currencySymbol: (initialData?.currencySymbol as CurrencySymbol) ?? "₺",
         campaignBannerEnabled: true,
     })
     const [customerPerks, setCustomerPerks] = useState<CustomerPerksSettings>({
-        wifiName: "MF-Digital-Guest",
-        wifiPassword: "cafe2026",
-        instagramUrl: "instagram.com/mfdigitalcafe",
+        wifiName: initialData?.wifiSSID ?? "",
+        wifiPassword: initialData?.wifiPassword ?? "",
+        instagramUrl: initialData?.instagramUrl ?? "",
     })
-    const [logoPreview, setLogoPreview] = useState(defaultLogoUrl)
-    const [splashPreview, setSplashPreview] = useState(defaultSplashUrl)
+    const [logoPreview, setLogoPreview] = useState(initialData?.logo ?? "")
+    const [splashPreview, setSplashPreview] = useState(initialData?.splashImage ?? defaultSplashUrl)
     const [logoFile, setLogoFile] = useState<File | null>(null)
     const [splashFile, setSplashFile] = useState<File | null>(null)
-    const { addToast } = useToast()
-    const [selectedTheme, setSelectedTheme] = useState<ThemePresetId>("minimalist")
-    const [selectedFont, setSelectedFont] = useState<FontPreset>("modern-sans")
-    const [selectedRadius, setSelectedRadius] = useState<RadiusPreset>("rounded")
-    const [isSaving, setIsSaving] = useState(false)
+    const [selectedTheme, setSelectedTheme] = useState<ThemePresetId>(
+        (initialData?.theme as ThemePresetId) ?? "minimalist"
+    )
+    const [selectedFont, setSelectedFont] = useState<FontPreset>(
+        (initialData?.fontFamily as FontPreset) ?? "modern-sans"
+    )
+    const [selectedRadius, setSelectedRadius] = useState<RadiusPreset>(
+        (initialData?.borderRadius as RadiusPreset) ?? "rounded"
+    )
+    const [isPending, startTransition] = useTransition()
 
     const currentTheme = themePresets.find((theme) => theme.id === selectedTheme) ?? themePresets[0]
 
+    // Live-preview CSS vars in the admin while editing
     useEffect(() => {
         if (typeof window === "undefined") return
+        const previewCss = buildThemeCss(selectedTheme, selectedRadius, selectedFont)
+        const styleId = "settings-live-preview"
+        let styleElement = document.getElementById(styleId) as HTMLStyleElement | null
 
-        const savedThemeSettings = window.localStorage.getItem("mf-digital-theme-settings")
-        if (!savedThemeSettings) return
-
-        try {
-            const parsed = JSON.parse(savedThemeSettings) as {
-                theme?: ThemePresetId
-                font?: FontPreset
-                radius?: RadiusPreset
-            }
-
-            if (parsed.theme && themePresets.some((theme) => theme.id === parsed.theme)) {
-                setSelectedTheme(parsed.theme)
-            }
-
-            if (parsed.font && fontOptions.some((font) => font.id === parsed.font)) {
-                setSelectedFont(parsed.font)
-            }
-
-            if (parsed.radius && radiusOptions.some((radius) => radius.id === parsed.radius)) {
-                setSelectedRadius(parsed.radius)
-            }
-        } catch (error) {
-            console.error("Failed to load theme settings", error)
+        if (!styleElement) {
+            styleElement = document.createElement("style")
+            styleElement.id = styleId
+            document.head.appendChild(styleElement)
         }
-    }, [])
 
-    useEffect(() => {
-        if (typeof window === "undefined") return
+        styleElement.textContent = previewCss
 
-        window.localStorage.setItem(
-            "mf-digital-theme-settings",
-            JSON.stringify({
-                theme: selectedTheme,
-                font: selectedFont,
-                radius: selectedRadius,
-            }),
-        )
+        return () => {
+            styleElement?.remove()
+        }
+    }, [selectedFont, selectedRadius, selectedTheme])
 
-        document.documentElement.style.setProperty("--primary", currentTheme.primary)
-        document.documentElement.style.setProperty("--radius", radiusValues[selectedRadius])
-        document.documentElement.style.setProperty("--font-family", fontFamilies[selectedFont])
-    }, [currentTheme.primary, selectedFont, selectedRadius, selectedTheme])
+    const handleSaveGeneral = () => {
+        startTransition(async () => {
+            try {
+                let logoUrl = generalProfile.logoUrl
+                if (logoFile) {
+                    logoUrl = await handleImageUpload(logoFile)
+                    setGeneralProfile((prev) => ({ ...prev, logoUrl }))
+                    setLogoPreview(logoUrl)
+                    setLogoFile(null)
+                }
+                await updateSettingsAction({
+                    restaurantName: generalProfile.restaurantName,
+                    slogan: generalProfile.tagline || null,
+                    logo: logoUrl || null,
+                })
+                router.refresh()
+                toast.success("Genel profil kaydedildi")
+            } catch {
+                toast.error("Kayıt sırasında bir hata oluştu")
+            }
+        })
+    }
 
-    const handleSaveAction = (_message: string) => {
-        setIsSaving(true)
+    const handleSaveAppearance = () => {
+        startTransition(async () => {
+            try {
+                let splashImageUrl = appearance.splashImageUrl
+                if (splashFile) {
+                    splashImageUrl = await handleImageUpload(splashFile)
+                    setAppearance((prev) => ({ ...prev, splashImageUrl }))
+                    setSplashPreview(splashImageUrl)
+                    setSplashFile(null)
+                }
+                await updateSettingsAction({
+                    theme: selectedTheme,
+                    fontFamily: selectedFont,
+                    borderRadius: selectedRadius,
+                    currencySymbol: appearance.currencySymbol,
+                    splashImage: splashImageUrl || null,
+                })
+                router.refresh()
+                toast.success("Görünüm ayarları kaydedildi")
+            } catch {
+                toast.error("Kayıt sırasında bir hata oluştu")
+            }
+        })
+    }
 
-        window.setTimeout(() => {
-            setIsSaving(false)
-            addToast("Ayarlar kaydedildi", "success")
-        }, 250)
+    const handleSavePerks = () => {
+        startTransition(async () => {
+            try {
+                await updateSettingsAction({
+                    wifiSSID: customerPerks.wifiName || null,
+                    wifiPassword: customerPerks.wifiPassword || null,
+                    instagramUrl: customerPerks.instagramUrl || null,
+                })
+                router.refresh()
+                toast.success("Müşteri avantajları kaydedildi")
+            } catch {
+                toast.error("Kayıt sırasında bir hata oluştu")
+            }
+        })
     }
 
     const handleLogoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -254,19 +237,19 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                     className="mx-auto max-w-6xl"
                 >
                     <div className="mb-6">
-                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                        <h2 className="text-2xl font-bold tracking-tight text-foreground">
                             {currentSection.title}
                         </h2>
                         <p className="mt-1 text-sm text-muted-foreground">{currentSection.description}</p>
                     </div>
 
-                    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+                    <div className="rounded-2xl border border-border bg-card p-6 shadow-sm text-card-foreground">
                         {activeTab === "general" && (
                             <div className="space-y-6">
 
 
                                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                                    <div className="relative h-20 w-20 overflow-hidden rounded-full border border-gray-200 bg-slate-100">
+                                    <div className="relative h-20 w-20 overflow-hidden rounded-full border border-border bg-muted">
                                         <Image
                                             src={logoPreview}
                                             alt="Restoran logosu"
@@ -291,32 +274,32 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                             Logo Yükle
                                         </Button>
                                         {logoFile && (
-                                            <p className="text-xs text-slate-500">Seçilen: {logoFile.name}</p>
+                                            <p className="text-xs text-muted-foreground">Seçilen: {logoFile.name}</p>
                                         )}
                                     </div>
                                 </div>
 
                                 <div className="grid gap-4">
                                     <div>
-                                        <label className="text-sm font-medium text-slate-700">Restoran Adı</label>
+                                        <label className="text-sm font-medium text-foreground">Restoran Adı</label>
                                         <Input
                                             value={generalProfile.restaurantName}
                                             onChange={(event) =>
                                                 setGeneralProfile((prev) => ({ ...prev, restaurantName: event.target.value }))
                                             }
-                                            className="mt-2 rounded-xl border-gray-200 focus-visible:ring-2 focus-visible:ring-black"
+                                            className="mt-2 rounded-xl border-border bg-background text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="text-sm font-medium text-slate-700">Slogan / Açıklama</label>
+                                        <label className="text-sm font-medium text-foreground">Slogan / Açıklama</label>
                                         <textarea
                                             value={generalProfile.tagline}
                                             onChange={(event) =>
                                                 setGeneralProfile((prev) => ({ ...prev, tagline: event.target.value }))
                                             }
                                             rows={4}
-                                            className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-black"
+                                            className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-ring"
                                         />
                                     </div>
                                 </div>
@@ -324,11 +307,11 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                 <div className="flex justify-end">
                                     <Button
                                         type="button"
-                                        disabled={isSaving}
-                                        onClick={() => handleSaveAction("Genel profil kaydedildi")}
-                                        className="rounded-xl bg-black px-4 py-2 text-white hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-70"
+                                        disabled={isPending}
+                                        onClick={handleSaveGeneral}
+                                        className="rounded-xl bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
                                     >
-                                        {isSaving ? "Kaydediliyor..." : "Kaydet"}
+                                        {isPending ? "Kaydediliyor..." : "Kaydet"}
                                     </Button>
                                 </div>
                             </div>
@@ -341,8 +324,8 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
                                     <div className="space-y-6">
                                         <div>
-                                            <label className="text-sm font-medium text-slate-700">Açılış Ekranı Görseli</label>
-                                            <div className="mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-slate-100">
+                                            <label className="text-sm font-medium text-foreground">Açılış Ekranı Görseli</label>
+                                            <div className="mt-2 overflow-hidden rounded-2xl border border-border bg-muted">
                                                 <div className="relative h-44 w-full">
                                                     <Image
                                                         src={splashPreview}
@@ -369,15 +352,15 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                                     Görsel Yükle
                                                 </Button>
                                                 {splashFile && (
-                                                    <p className="text-xs text-slate-500">Seçilen: {splashFile.name}</p>
+                                                    <p className="text-xs text-muted-foreground">Seçilen: {splashFile.name}</p>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <div className="rounded-2xl border border-gray-100 bg-slate-50/80 p-4">
+                                        <div className="rounded-2xl border border-border bg-muted/60 p-4">
                                             <div className="mb-4">
-                                                <h4 className="text-sm font-semibold text-slate-900">Tema Seçici</h4>
-                                                <p className="mt-1 text-xs text-slate-500">
+                                                <h4 className="text-sm font-semibold text-foreground">Tema Seçici</h4>
+                                                <p className="mt-1 text-xs text-muted-foreground">
                                                     Menü deneyiminiz için rafine bir marka teması seçin.
                                                 </p>
                                             </div>
@@ -393,24 +376,24 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                                             whileTap={{ scale: 0.98 }}
                                                             onClick={() => setSelectedTheme(theme.id)}
                                                             className={`rounded-2xl border p-3 text-left transition ${isSelected
-                                                                ? "border-black ring-2 ring-black/10"
-                                                                : "border-gray-200 hover:border-slate-300"
+                                                                ? "border-primary ring-2 ring-ring/20"
+                                                                : "border-border hover:border-ring/40"
                                                                 }`}
                                                         >
                                                             <div className="flex items-center justify-between">
-                                                                <span className="text-sm font-semibold text-slate-900">
+                                                                <span className="text-sm font-semibold text-foreground">
                                                                     {theme.name}
                                                                 </span>
                                                                 <span className={`flex h-6 w-6 items-center justify-center rounded-full ${isSelected
-                                                                    ? "bg-black text-white"
-                                                                    : "bg-slate-100 text-transparent"
+                                                                    ? "bg-primary text-primary-foreground"
+                                                                    : "bg-muted text-transparent"
                                                                     }`}>
                                                                     <Check className="h-3.5 w-3.5" />
                                                                 </span>
                                                             </div>
 
                                                             <div
-                                                                className="mt-3 rounded-xl border border-black/5 p-3"
+                                                                className="mt-3 rounded-xl border p-3"
                                                                 style={{ backgroundColor: theme.background }}
                                                             >
                                                                 <div className="mb-3 flex gap-2">
@@ -443,11 +426,11 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
 
                                         <div className="grid gap-4 md:grid-cols-2">
                                             <div>
-                                                <label className="text-sm font-medium text-slate-700">Yazı Tipi</label>
+                                                <label className="text-sm font-medium text-foreground">Yazı Tipi</label>
                                                 <select
                                                     value={selectedFont}
                                                     onChange={(event) => setSelectedFont(event.target.value as FontPreset)}
-                                                    className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-black"
+                                                    className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-ring"
                                                 >
                                                     {fontOptions.map((font) => (
                                                         <option key={font.id} value={font.id}>
@@ -458,7 +441,7 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                             </div>
 
                                             <div>
-                                                <label className="text-sm font-medium text-slate-700">Para Birimi Simgesi</label>
+                                                <label className="text-sm font-medium text-foreground">Para Birimi Simgesi</label>
                                                 <select
                                                     value={appearance.currencySymbol}
                                                     onChange={(event) =>
@@ -467,7 +450,7 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                                             currencySymbol: event.target.value as CurrencySymbol,
                                                         }))
                                                     }
-                                                    className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-black"
+                                                    className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-ring"
                                                 >
                                                     <option value="₺">₺</option>
                                                     <option value="$">$</option>
@@ -478,16 +461,16 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                         </div>
 
                                         <div>
-                                            <label className="text-sm font-medium text-slate-700">Köşe Yuvarlaklığı</label>
-                                            <div className="mt-2 inline-flex rounded-xl border border-gray-200 bg-white p-1">
+                                            <label className="text-sm font-medium text-foreground">Köşe Yuvarlaklığı</label>
+                                            <div className="mt-2 inline-flex rounded-xl border border-border bg-background p-1">
                                                 {radiusOptions.map((option) => (
                                                     <button
                                                         key={option.id}
                                                         type="button"
                                                         onClick={() => setSelectedRadius(option.id)}
                                                         className={`rounded-lg px-3 py-2 text-sm transition ${selectedRadius === option.id
-                                                            ? "bg-black text-white"
-                                                            : "text-slate-600 hover:text-slate-900"
+                                                            ? "bg-primary text-primary-foreground"
+                                                            : "text-muted-foreground hover:text-foreground"
                                                             }`}
                                                     >
                                                         {option.label}
@@ -497,13 +480,13 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                         </div>
 
                                         <div>
-                                            <label className="text-sm font-medium text-slate-700">Kampanya Afişi</label>
-                                            <div className="mt-2 flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
+                                            <label className="text-sm font-medium text-foreground">Kampanya Afişi</label>
+                                            <div className="mt-2 flex items-center justify-between rounded-xl border border-border px-4 py-3">
                                                 <div>
-                                                    <p className="text-sm font-medium text-slate-900">
+                                                    <p className="text-sm font-medium text-foreground">
                                                         Menüde Öne Çıkan Kampanya Afişini Etkinleştir
                                                     </p>
-                                                    <p className="text-xs text-slate-500">
+                                                    <p className="text-xs text-muted-foreground">
                                                         Müşteri menüsünde öne çıkan kampanyaları vurgulayın.
                                                     </p>
                                                 </div>
@@ -515,7 +498,7 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                                             campaignBannerEnabled: !prev.campaignBannerEnabled,
                                                         }))
                                                     }
-                                                    className={`relative h-7 w-12 rounded-full transition ${appearance.campaignBannerEnabled ? "bg-black" : "bg-slate-300"
+                                                    className={`relative h-7 w-12 rounded-full transition ${appearance.campaignBannerEnabled ? "bg-primary" : "bg-muted"
                                                         }`}
                                                     aria-pressed={appearance.campaignBannerEnabled}
                                                 >
@@ -528,10 +511,10 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                         </div>
                                     </div>
 
-                                    <div className="rounded-2xl border border-gray-100 bg-slate-50 p-4 shadow-sm">
+                                    <div className="rounded-2xl border border-border bg-muted/60 p-4 shadow-sm">
                                         <div className="mb-4">
-                                            <h4 className="text-sm font-semibold text-slate-900">Mini Önizleme</h4>
-                                            <p className="mt-1 text-xs text-slate-500">
+                                            <h4 className="text-sm font-semibold text-foreground">Mini Önizleme</h4>
+                                            <p className="mt-1 text-xs text-muted-foreground">
                                                 Marka güncellemelerinizi anında görün.
                                             </p>
                                         </div>
@@ -605,11 +588,11 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                 <div className="flex justify-end">
                                     <Button
                                         type="button"
-                                        disabled={isSaving}
-                                        onClick={() => handleSaveAction("Görünüm ayarları kaydedildi")}
+                                        disabled={isPending}
+                                        onClick={handleSaveAppearance}
                                         className="rounded-xl bg-black px-4 py-2 text-white hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-70"
                                     >
-                                        {isSaving ? "Kaydediliyor..." : "Kaydet"}
+                                        {isPending ? "Kaydediliyor..." : "Kaydet"}
                                     </Button>
                                 </div>
                             </div>
@@ -621,31 +604,31 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
 
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="text-sm font-medium text-slate-700">Wi‑Fi Ağ Adı (SSID)</label>
+                                        <label className="text-sm font-medium text-foreground">Wi‑Fi Ağ Adı (SSID)</label>
                                         <Input
                                             value={customerPerks.wifiName}
                                             onChange={(event) =>
                                                 setCustomerPerks((prev) => ({ ...prev, wifiName: event.target.value }))
                                             }
-                                            className="mt-2 rounded-xl border-gray-200 focus-visible:ring-2 focus-visible:ring-black"
+                                            className="mt-2 rounded-xl border-border bg-background text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="text-sm font-medium text-slate-700">Wi‑Fi Şifresi</label>
+                                        <label className="text-sm font-medium text-foreground">Wi‑Fi Şifresi</label>
                                         <Input
                                             value={customerPerks.wifiPassword}
                                             onChange={(event) =>
                                                 setCustomerPerks((prev) => ({ ...prev, wifiPassword: event.target.value }))
                                             }
-                                            className="mt-2 rounded-xl border-gray-200 focus-visible:ring-2 focus-visible:ring-black"
+                                            className="mt-2 rounded-xl border-border bg-background text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="text-sm font-medium text-slate-700">Instagram Profil Bağlantısı</label>
-                                        <div className="mt-2 flex overflow-hidden rounded-xl border border-gray-200 focus-within:ring-2 focus-within:ring-black">
-                                            <span className="flex items-center bg-slate-50 px-3 text-sm text-slate-500">
+                                        <label className="text-sm font-medium text-foreground">Instagram Profil Bağlantısı</label>
+                                        <div className="mt-2 flex overflow-hidden rounded-xl border border-border bg-background focus-within:ring-2 focus-within:ring-ring">
+                                            <span className="flex items-center bg-muted px-3 text-sm text-muted-foreground">
                                                 https://
                                             </span>
                                             <input
@@ -653,7 +636,7 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                                 onChange={(event) =>
                                                     setCustomerPerks((prev) => ({ ...prev, instagramUrl: event.target.value }))
                                                 }
-                                                className="w-full px-3 py-2 text-sm text-slate-900 outline-none"
+                                                className="w-full px-3 py-2 text-sm text-foreground outline-none"
                                             />
                                         </div>
                                     </div>
@@ -661,11 +644,11 @@ export function SettingsDashboard({ activeTab }: SettingsDashboardProps) {
                                     <div className="flex justify-end pt-2">
                                         <Button
                                             type="button"
-                                            disabled={isSaving}
-                                            onClick={() => handleSaveAction("Müşteri avantajları kaydedildi")}
-                                            className="rounded-xl bg-black px-4 py-2 text-white hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-70"
+                                            disabled={isPending}
+                                            onClick={handleSavePerks}
+                                            className="rounded-xl bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
                                         >
-                                            {isSaving ? "Kaydediliyor..." : "Kaydet"}
+                                            {isPending ? "Kaydediliyor..." : "Kaydet"}
                                         </Button>
                                     </div>
                                 </div>

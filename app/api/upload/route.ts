@@ -1,9 +1,16 @@
 import { put } from "@vercel/blob"
 import { NextResponse } from "next/server"
+import { auth } from "@/auth"
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
 
 export async function POST(request: Request) {
+  const session = await auth()
+  if (!session) {
+    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 })
+  }
+
   try {
     const formData = await request.formData()
     const file = formData.get("file")
@@ -19,17 +26,20 @@ export async function POST(request: Request) {
       )
     }
 
-    const filename = `uploads/${Date.now()}-${file.name.replace(/\s+/g, "-")}`
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: "Dosya boyutu 5 MB'ı aşamaz." },
+        { status: 400 },
+      )
+    }
+
+    // Sanitize filename — strip path traversal characters
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-")
+    const filename = `uploads/${Date.now()}-${safeName}`
+
     const blob = await put(filename, file, {
       access: "public",
       addRandomSuffix: true,
-    })
-
-    console.log("[upload] Dosya yüklendi", {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      url: blob.url,
     })
 
     return NextResponse.json({ url: blob.url }, { status: 200 })

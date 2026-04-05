@@ -3,11 +3,12 @@
 import { useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import { ChevronDown, FolderOpen, Megaphone, Menu, Package, Settings, X } from "lucide-react"
+import { ChevronDown, FolderOpen, LogOut, Megaphone, Menu, Package, Settings, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { signOutAction } from "@/app/actions/auth-actions"
 
 const navItems = [
-    { id: "products", name: "Ürünler", icon: Package, href: "/admin" },
+    { id: "products", name: "Ürünler", icon: Package, href: "/admin/products" },
     { id: "categories", name: "Kategoriler", icon: FolderOpen, href: "/admin/categories" },
     { id: "campaigns", name: "Kampanyalar", icon: Megaphone, href: "/admin/campaigns" },
     {
@@ -23,7 +24,12 @@ const navItems = [
     },
 ]
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+    restaurantName: string
+    logoUrl?: string | null
+}
+
+export function AdminSidebar({ restaurantName, logoUrl }: AdminSidebarProps) {
     const pathname = usePathname()
     const router = useRouter()
     const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -62,10 +68,15 @@ export function AdminSidebar() {
                 <div className="flex h-full flex-col">
                     <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
                         <div className="flex items-center gap-3">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                                <Package className="h-4 w-4" />
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                                {logoUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={logoUrl} alt="logo" className="h-full w-full object-cover" />
+                                ) : (
+                                    <Package className="h-4 w-4" />
+                                )}
                             </div>
-                            <span className="font-semibold text-sidebar-foreground">MF Digital</span>
+                            <span className="truncate font-semibold text-sidebar-foreground">{restaurantName}</span>
                         </div>
                         <button
                             onClick={() => setSidebarOpen(false)}
@@ -126,8 +137,8 @@ export function AdminSidebar() {
                                                                     key={child.id}
                                                                     onClick={() => handleNavigate(child.href)}
                                                                     className={`block w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm leading-snug transition ${isChildActive
-                                                                        ? "font-medium text-black"
-                                                                        : "text-gray-500 hover:text-black"
+                                                                        ? "font-medium text-sidebar-foreground"
+                                                                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground"
                                                                         }`}
                                                                 >
                                                                     {child.name}
@@ -144,10 +155,16 @@ export function AdminSidebar() {
                         })}
                     </nav>
 
-                    <div className="border-t border-sidebar-border p-4">
+                    <div className="border-t border-sidebar-border space-y-2 p-4">
                         <Button variant="outline" onClick={() => handleNavigate("/")} className="w-full rounded-xl">
                             Ana Sayfaya Dön
                         </Button>
+                        <form action={signOutAction}>
+                            <Button variant="outline" type="submit" className="w-full rounded-xl text-destructive hover:text-destructive">
+                                <LogOut className="mr-2 h-4 w-4" />
+                                Çıkış Yap
+                            </Button>
+                        </form>
                     </div>
                 </div>
             </aside>

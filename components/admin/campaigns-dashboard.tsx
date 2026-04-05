@@ -2,18 +2,30 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { ExternalLink, Megaphone, Sparkles } from "lucide-react"
+import { Megaphone, Sparkles } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { ImageUploadField } from "@/components/ui/image-upload-field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { useToast } from "@/context/toast-context"
 import { handleImageUpload } from "@/lib/upload-image"
+import { updateCampaignAction } from "@/app/actions/campaign-actions"
+
+interface CampaignData {
+    id: string
+    bannerImage: string | null
+    bannerTitle: string | null
+    bannerDescription: string | null
+    isBannerActive: boolean
+    popupImage: string | null
+    popupTitle: string | null
+    popupMessage: string | null
+    isPopupActive: boolean
+}
 
 interface HomeBannerState {
     title: string
     description: string
-    linkUrl: string
     enabled: boolean
     imageUrl: string
 }
@@ -21,8 +33,6 @@ interface HomeBannerState {
 interface PopupCampaignState {
     title: string
     message: string
-    buttonText: string
-    buttonUrl: string
     enabled: boolean
     imageUrl: string
 }
@@ -33,31 +43,31 @@ const defaultBannerImage =
 const defaultPopupImage =
     "https://images.unsplash.com/photo-1511920170033-f8396924c348?auto=format&fit=crop&w=900&q=80"
 
-export function CampaignsDashboard() {
-    const { addToast } = useToast()
+interface CampaignsDashboardProps {
+    initialData: CampaignData | null
+}
+
+export function CampaignsDashboard({ initialData }: CampaignsDashboardProps) {
     const [isSaving, setIsSaving] = useState(false)
 
     const [homeBanner, setHomeBanner] = useState<HomeBannerState>({
-        title: "Yeni Sezon Lezzetleri",
-        description: "Taptaze tatlar ve sınırlı süreli kahve seçkileri şimdi menüde.",
-        linkUrl: "https://example.com/kampanyalar/yeni-sezon",
-        enabled: true,
-        imageUrl: defaultBannerImage,
+        title: initialData?.bannerTitle ?? "Yeni Sezon Lezzetleri",
+        description: initialData?.bannerDescription ?? "Taptaze tatlar ve sınırlı süreli kahve seçkileri şimdi menüde.",
+        enabled: initialData?.isBannerActive ?? true,
+        imageUrl: initialData?.bannerImage ?? defaultBannerImage,
     })
 
     const [popupCampaign, setPopupCampaign] = useState<PopupCampaignState>({
-        title: "İlk Siparişe Özel",
-        message: "Bugün sipariş veren misafirlerimize sıcak içeceklerde %10 indirim.",
-        buttonText: "Kampanyayı İncele",
-        buttonUrl: "https://example.com/kampanyalar/hos-geldin",
-        enabled: true,
-        imageUrl: defaultPopupImage,
+        title: initialData?.popupTitle ?? "İlk Siparişe Özel",
+        message: initialData?.popupMessage ?? "Bugün sipariş veren misafirlerimize sıcak içeceklerde %10 indirim.",
+        enabled: initialData?.isPopupActive ?? true,
+        imageUrl: initialData?.popupImage ?? defaultPopupImage,
     })
 
     const [bannerFile, setBannerFile] = useState<File | null>(null)
     const [popupFile, setPopupFile] = useState<File | null>(null)
-    const [bannerPreview, setBannerPreview] = useState(defaultBannerImage)
-    const [popupPreview, setPopupPreview] = useState(defaultPopupImage)
+    const [bannerPreview, setBannerPreview] = useState(initialData?.bannerImage ?? defaultBannerImage)
+    const [popupPreview, setPopupPreview] = useState(initialData?.popupImage ?? defaultPopupImage)
 
     const updatePreview = (
         setter: React.Dispatch<React.SetStateAction<string>>,
@@ -93,7 +103,7 @@ export function CampaignsDashboard() {
         }
 
         if (!allowedImageTypes.includes(file.type)) {
-            addToast("Sadece JPEG, PNG veya WEBP görseller yüklenebilir.", "error")
+            toast.error("Sadece JPEG, PNG veya WEBP görseller yüklenebilir.")
             return
         }
 
@@ -106,16 +116,29 @@ export function CampaignsDashboard() {
         try {
             let nextBannerImageUrl = homeBanner.imageUrl
             let nextPopupImageUrl = popupCampaign.imageUrl
-            let hasUpload = false
 
             if (bannerFile) {
                 nextBannerImageUrl = await handleImageUpload(bannerFile)
-                hasUpload = true
             }
 
             if (popupFile) {
                 nextPopupImageUrl = await handleImageUpload(popupFile)
-                hasUpload = true
+            }
+
+            const result = await updateCampaignAction({
+                bannerImage: nextBannerImageUrl,
+                bannerTitle: homeBanner.title,
+                bannerDescription: homeBanner.description,
+                isBannerActive: homeBanner.enabled,
+                popupImage: nextPopupImageUrl,
+                popupTitle: popupCampaign.title,
+                popupMessage: popupCampaign.message,
+                isPopupActive: popupCampaign.enabled,
+            })
+
+            if (result.error) {
+                toast.error(result.error)
+                return
             }
 
             setHomeBanner((prev) => ({ ...prev, imageUrl: nextBannerImageUrl }))
@@ -125,16 +148,9 @@ export function CampaignsDashboard() {
             setBannerPreview(nextBannerImageUrl)
             setPopupPreview(nextPopupImageUrl)
 
-            if (hasUpload) {
-                addToast("Başarıyla yüklendi", "success")
-            }
-
-            addToast("Kampanya ayarları kaydedildi", "success")
+            toast.success("Kampanya ayarları kaydedildi.")
         } catch (error) {
-            addToast(
-                error instanceof Error ? error.message : "Kampanya görselleri kaydedilemedi.",
-                "error",
-            )
+            toast.error(error instanceof Error ? error.message : "Kampanya görselleri kaydedilemedi.")
         } finally {
             setIsSaving(false)
         }
@@ -223,13 +239,6 @@ export function CampaignsDashboard() {
                                 </div>
 
                                 <div>
-                                    <label className="text-sm font-medium text-slate-700">Link URL</label>
-                                    <Input
-                                        value={homeBanner.linkUrl}
-                                        onChange={(event) => setHomeBanner((prev) => ({ ...prev, linkUrl: event.target.value }))}
-                                        placeholder="https://alanadiniz.com/kampanya"
-                                        className="mt-2 rounded-xl border-zinc-200"
-                                    />
                                 </div>
                             </div>
 
@@ -246,10 +255,6 @@ export function CampaignsDashboard() {
                                             <p className="mt-1 line-clamp-2 text-sm text-zinc-600">
                                                 {homeBanner.description || "Banner açıklaması burada görünecek."}
                                             </p>
-                                            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-black px-3 py-1 text-xs font-semibold text-white">
-                                                İncele
-                                                <ExternalLink className="h-3.5 w-3.5" />
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -271,7 +276,7 @@ export function CampaignsDashboard() {
                                 </div>
                                 <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Açılış Pop-up'ı</h2>
                                 <p className="mt-1 text-sm text-zinc-500">
-                                    Ziyaretçileri karşılayan kampanya penceresini görsel, metin ve CTA ile düzenleyin.
+                                    Ziyaretçileri karşılayan bilgilendirme penceresini görsel ve metinle düzenleyin.
                                 </p>
                             </div>
 
@@ -321,27 +326,6 @@ export function CampaignsDashboard() {
                                     />
                                 </div>
 
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div>
-                                        <label className="text-sm font-medium text-slate-700">Buton Metni</label>
-                                        <Input
-                                            value={popupCampaign.buttonText}
-                                            onChange={(event) => setPopupCampaign((prev) => ({ ...prev, buttonText: event.target.value }))}
-                                            placeholder="Kampanyayı Gör"
-                                            className="mt-2 rounded-xl border-zinc-200"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="text-sm font-medium text-slate-700">Buton URL</label>
-                                        <Input
-                                            value={popupCampaign.buttonUrl}
-                                            onChange={(event) => setPopupCampaign((prev) => ({ ...prev, buttonUrl: event.target.value }))}
-                                            placeholder="https://alanadiniz.com/firsat"
-                                            className="mt-2 rounded-xl border-zinc-200"
-                                        />
-                                    </div>
-                                </div>
                             </div>
 
                             <div className="rounded-3xl border border-zinc-100 bg-zinc-50 p-4">
@@ -358,12 +342,6 @@ export function CampaignsDashboard() {
                                                 {popupCampaign.message || "Pop-up açıklaması burada görünecek."}
                                             </p>
                                         </div>
-                                        <button
-                                            type="button"
-                                            className="w-full rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white"
-                                        >
-                                            {popupCampaign.buttonText || "Kampanyayı Gör"}
-                                        </button>
                                     </div>
                                 </div>
                             </div>

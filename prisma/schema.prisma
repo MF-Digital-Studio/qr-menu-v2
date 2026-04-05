@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  image     String?
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  image       String?
+  isSoldOut   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Single-record settings table. Always upsert with id = "singleton".
+model Settings {
+  id             String  @id @default("singleton")
+  restaurantName String  @default("")
+  slogan         String?
+  logo           String?
+  theme          String  @default("minimalist")
+  fontFamily     String  @default("modern-sans")
+  currencySymbol String  @default("₺")
+  borderRadius   String  @default("rounded")
+  wifiSSID       String?
+  wifiPassword   String?
+  instagramUrl   String?
+  splashImage    String?
+}
+
+/// Single-record campaign table. Always upsert with id = "singleton".
+model Campaign {
+  id                String  @id @default("singleton")
+  bannerImage       String?
+  bannerTitle       String?
+  bannerDescription String?
+  isBannerActive    Boolean @default(false)
+  popupImage        String?
+  popupTitle        String?
+  popupMessage      String?
+  isPopupActive     Boolean @default(false)
+}

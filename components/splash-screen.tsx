@@ -7,10 +7,24 @@ import { Menu, MessageSquare, Ticket, Globe, Instagram, Wifi } from "lucide-reac
 import { Button } from "@/components/ui/button"
 
 interface SplashScreenProps {
+  restaurantName: string
+  slogan?: string | null
+  logoUrl?: string | null
+  wifiSSID?: string | null
+  wifiPassword?: string | null
+  instagramUrl?: string | null
   onNavigate?: (view: "menu" | "feedback" | "campaigns") => void
 }
 
-export function SplashScreen({ onNavigate }: SplashScreenProps) {
+export function SplashScreen({
+  restaurantName,
+  slogan,
+  logoUrl,
+  wifiSSID,
+  wifiPassword,
+  instagramUrl,
+  onNavigate,
+}: SplashScreenProps) {
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
       {/* Background Image with Blur */}
@@ -38,8 +52,8 @@ export function SplashScreen({ onNavigate }: SplashScreenProps) {
               className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-white/20 shadow-2xl backdrop-blur-sm"
             >
               <Image
-                src="/images/cafe-interior.jpg"
-                alt="MF Digital Cafe logo"
+                src={logoUrl || "/images/cafe-interior.jpg"}
+                alt={`${restaurantName} logo`}
                 fill
                 className="object-cover"
                 priority
@@ -50,18 +64,18 @@ export function SplashScreen({ onNavigate }: SplashScreenProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.6 }}
-              className="text-4xl font-extrabold tracking-tight text-white drop-shadow-xl"
+              className="text-4xl font-extrabold tracking-tight text-white drop-shadow-[0_3px_18px_rgba(0,0,0,0.55)]"
             >
-              MF Digital Cafe
+              {restaurantName}
             </motion.h1>
 
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.6 }}
-              className="max-w-xs text-lg font-medium text-gray-200 drop-shadow-md"
+              className="max-w-xs text-lg font-medium text-white/90 drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]"
             >
-              Mahallenizin modern kahvesi, özenle servis edilir.
+              {slogan || ""}
             </motion.p>
           </motion.div>
         </div>
@@ -74,13 +88,15 @@ export function SplashScreen({ onNavigate }: SplashScreenProps) {
           className="w-full max-w-md"
         >
           <div className="glass rounded-3xl p-6 shadow-2xl">
-            <div className="mb-4 flex w-full items-center justify-between rounded-xl border border-white/10 bg-secondary/80 p-3 text-white backdrop-blur-md">
-              <div className="flex items-center gap-2 text-sm font-medium text-secondary-foreground">
+            <div className="mb-4 flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/85 p-3 text-card-foreground backdrop-blur-md">
+              <div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
                 <Wifi className="h-4 w-4" />
                 <span>Ağ:</span>
-                <span>MF-Digital-Guest</span>
+                <span>{wifiSSID || "-"}</span>
               </div>
-              <span className="rounded-md bg-black/30 px-2 py-1 font-mono text-xs">Şifre: cafe2026</span>
+              {wifiPassword && (
+                <span className="rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground">Şifre: {wifiPassword}</span>
+              )}
             </div>
 
             {/* Primary Action */}
@@ -99,7 +115,7 @@ export function SplashScreen({ onNavigate }: SplashScreenProps) {
               <Button
                 onClick={() => onNavigate?.("feedback")}
                 variant="secondary"
-                className="h-12 gap-2 rounded-xl bg-secondary/80 font-medium text-secondary-foreground transition-all hover:bg-secondary active:scale-[0.98]"
+                className="h-12 gap-2 rounded-xl bg-secondary font-medium text-secondary-foreground transition-all hover:bg-secondary/90 active:scale-[0.98]"
               >
                 <MessageSquare className="h-4 w-4" />
                 Geri Bildirim Ver
@@ -107,7 +123,7 @@ export function SplashScreen({ onNavigate }: SplashScreenProps) {
               <Button
                 onClick={() => onNavigate?.("campaigns")}
                 variant="secondary"
-                className="relative h-12 gap-2 rounded-xl bg-secondary/80 font-medium text-secondary-foreground transition-all hover:bg-secondary active:scale-[0.98]"
+                className="relative h-12 gap-2 rounded-xl bg-secondary font-medium text-secondary-foreground transition-all hover:bg-secondary/90 active:scale-[0.98]"
               >
                 <Ticket className="h-4 w-4" />
                 Kampanyalar
@@ -121,7 +137,7 @@ export function SplashScreen({ onNavigate }: SplashScreenProps) {
             {/* Footer Area */}
             <div className="flex items-center justify-between border-t border-border/50 pt-4">
               {/* Language Selector */}
-              <button className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+              <button className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-card-foreground/70 transition-colors hover:bg-accent hover:text-accent-foreground">
                 <Globe className="h-4 w-4" />
                 <span>🇹🇷</span>
                 <span>Türkçe</span>
@@ -129,25 +145,22 @@ export function SplashScreen({ onNavigate }: SplashScreenProps) {
 
               {/* Social Icons */}
               <div className="flex items-center gap-2">
-                <a
-                  href="#"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  aria-label="Instagram"
-                >
-                  <Instagram className="h-4 w-4" />
-                </a>
-                <a
-                  href="#"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  aria-label="Web sitesi"
-                >
-                  <Globe className="h-4 w-4" />
-                </a>
+                {instagramUrl && (
+                  <a
+                    href={instagramUrl.startsWith("http") ? instagramUrl : `https://${instagramUrl}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-card-foreground/70 transition-colors hover:bg-accent hover:text-accent-foreground"
+                    aria-label="Instagram"
+                  >
+                    <Instagram className="h-4 w-4" />
+                  </a>
+                )}
               </div>
             </div>
 
             {/* Brand Signature */}
-            <p className="mt-4 text-center text-xs text-muted-foreground/70">
+            <p className="mt-4 text-center text-xs text-card-foreground/55">
               <span className="font-medium">MF Digital Studio</span> tarafından tutkuyla hazırlandı
             </p>
           </div>
